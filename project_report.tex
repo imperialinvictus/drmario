@@ -1,0 +1,98 @@
+\documentclass{article}
+
+%% Page Margins %%
+\usepackage{geometry}
+\geometry{
+    top = 0.75in,
+    bottom = 0.75in,
+    right = 0.75in,
+    left = 0.75in,
+}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{parskip}
+
+\title{Assembly Project: Dr Mario}
+\date{} 
+
+\author{Rafay Usman and Sergio Sanchez}
+
+\begin{document}
+\maketitle
+\section{Instruction and Summary}
+
+\begin{enumerate}
+
+    \item Which milestones were implemented? M1, M2, M3, Partial M4
+
+    \item How to view the game:  
+    \begin{enumerate}
+    \item Unit width in pixels:       256
+    \item Unit height in pixels:      256
+    \item Display width in pixels:    8
+    \item Display height in pixels:   8
+    \item Base Address for Display:   0x10008000
+    \end{enumerate}
+
+    
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.3\textwidth]{mario game.png}
+    \caption{caption}
+    \label{Instructions}
+\end{figure}
+
+
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.3\textwidth]{mario_gameover.png}
+    \caption{caption}
+    \label{Instructions}
+\end{figure}
+
+
+\item Game Summary:
+% TODO: Tell  a little about your game.
+\begin{itemize}
+    \item Currently has droping blocks with increasing gravity space
+    \item Collision Detection and block removal
+    \item Game Over Screen
+\end{itemize}
+
+    
+\end{enumerate}
+
+\section{Attribution Table}
+\begin{center}
+\begin{tabular}{|| c | c ||}
+\hline
+ Student 1 (Rafay Usman and 1010103317) &  Student 2 (Sergio Sanchez 1008801432) \\ 
+ \hline
+ Block Removal Upon 4 in row and ensuring unsupported blocks fall (M3)& M1 \\
+ \hline
+ Gravity Speed & M2 \\
+ \hline
+ Deifficulty Selction (inprogress) & M3 \\ 
+ \hline
+ Added Pause & Gravity \\ 
+ \hline
+ Task & Game Over\\
+ \hline
+ Task & Task\\  
+ \hline
+\end{tabular}
+\end{center}
+
+% TODO: Fill out the remainder of the document as you see 
+%       fit, including as much detail as you think 
+%       necessary to better understand your code. 
+%       You can add extra sections and subsections to 
+%       help us understand why you deserve marks for 
+%       features that were more challenging than they
+%       might initially seem.
+
+
+\end{document}
