@@ -54,12 +54,16 @@ CAPSULE_COUNT:
     .word 0     # Counter for spawned capsules
 GRAVITY_INTERVAL:
     .word 5      # Increase speed every 5 capsules
-VIRUS_COUNT:
-    .word 0
 DIFFICULTY:
     .word 0  # 0=Easy, 1=Medium, 2=Hard
 PAUSED:
     .word 0     # 0 = not paused, 1 = paused
+
+# Virus positions and colors
+VIRUS_POSITIONS:
+    .space 36    # Space for 3 viruses (x, y, color) = 12 bytes per virus
+VIRUS_COUNT:
+    .word 3      # Number of viruses to generate
 
 ##############################################################################
 # Code
@@ -86,6 +90,9 @@ main:
     
     # Generate initial capsule colors
     jal generateCapsuleColors
+
+	#generate the viruses now 
+	jal generateViruses
     
     lw $t0, ADDR_DSPL       # $t0 = base address for display 
     # New code for mode selection and virus generation
@@ -94,6 +101,147 @@ main:
     # jal generate_viruses    # Populate viruses based on difficulty
     
     j game_loop             # Start the game
+
+# mode_selection:
+    # # Draw difficulty selection screen
+    # # (Assume draw_mode_menu is implemented to display options)
+    # # jal draw_mode_menu
+
+    # la $t8, ADDR_KBRD      # Get address of keyboard base address storage
+    # lw $t8, 0($t8)         # Load actual keyboard base address
+
+
+# mode_wait:
+    # lw $t9, 0($t8)         # Check if key pressed
+    # andi $t9, $t9, 1
+    # beqz $t9, mode_wait
+    
+    # lw $t9, 4($t8)         # Get key code
+    
+    # li $t3, 101            # ASCII for 'e'
+    # beq $t9, $t3, set_easy
+    # li $t3, 109            # ASCII for 'm'
+    # beq $t9, $t3, set_medium
+    # li $t3, 100            # ASCII for 'd' (changed from 104)
+    # beq $t9, $t3, set_hard
+    
+    # j mode_wait           # Invalid key, wait again
+
+# set_easy:
+    # li $t1, 4             # 4 viruses
+    # sw $t1, VIRUS_COUNT
+    # li $t1, 20            # Slow gravity
+    # sw $t1, GRAVITY_DELAY
+    # j end_mode
+
+# set_medium:
+    # li $t1, 8             # 8 viruses
+    # sw $t1, VIRUS_COUNT
+    # li $t1, 15            # Medium gravity
+    # sw $t1, GRAVITY_DELAY
+    # j end_mode
+
+# set_hard:
+    # li $t1, 12            # 12 viruses
+    # sw $t1, VIRUS_COUNT
+    # li $t1, 10            # Fast gravity
+    # sw $t1, GRAVITY_DELAY
+
+# end_mode:
+    # jr $ra                # Return to main
+
+generateViruses:
+    # Save return address
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    la $t0, VIRUS_POSITIONS  # Load address of virus positions array
+    lw $t1, VIRUS_COUNT      # Load number of viruses
+    li $t2, 0                # Counter
+    
+gen_virus_loop:
+    # Generate random X position (3 to 20)
+    li $v0, 42
+    li $a0, 0
+    li $a1, 18               # Range 0-17
+    syscall
+    addi $a0, $a0, 3         # Adjust to 3-20 range
+    sw $a0, 0($t0)           # Store X position
+    
+    # Generate random Y position (10 to 28)
+    li $v0, 42
+    li $a0, 0
+    li $a1, 19               # Range 0-18
+    syscall
+    addi $a0, $a0, 10        # Adjust to 10-28 range
+    sw $a0, 4($t0)           # Store Y position
+    
+    # Generate random color
+    jal generateColour
+    sw $v0, 8($t0)           # Store color
+    
+    # Store virus in grid
+    lw $t3, 0($t0)           # Load X
+    lw $t4, 4($t0)           # Load Y
+    
+    # Convert to grid coordinates
+    subi $t3, $t3, 3         # Subtract left wall offset from X
+    
+    # Calculate grid index
+    mul $t5, $t4, 19         # Y * grid width
+    add $t5, $t5, $t3        # Add X
+    sll $t5, $t5, 2          # Multiply by 4 for word alignment
+    la $t6, BOTTLE_GRID      # Load grid base address
+    add $t6, $t6, $t5        # Calculate address in grid
+    
+    # Store virus color in grid
+    lw $t7, 8($t0)           # Load virus color
+    sw $t7, 0($t6)           # Store in grid
+    
+    # Move to next virus
+    addi $t0, $t0, 12        # Move to next virus (3 words per virus)
+    addi $t2, $t2, 1         # Increment counter
+    blt $t2, $t1, gen_virus_loop # Loop if more viruses to generate
+    
+    # Restore return address
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+drawViruses:
+    # Save return address
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    la $t9, VIRUS_POSITIONS  # Load virus positions array
+    lw $t8, VIRUS_COUNT      # Load number of viruses
+    li $t7, 0                # Counter
+    lw $t0, ADDR_DSPL        # Load display base address
+    
+draw_virus_loop:
+    # Load virus data
+    lw $t1, 0($t9)           # X position
+    lw $t2, 4($t9)           # Y position
+    lw $t3, 8($t9)           # Color
+    
+    # Calculate pixel position
+    mul $t4, $t2, 128        # Y * row width
+    mul $t5, $t1, 4          # X * pixel size
+    add $t6, $t4, $t5        # Combine offsets
+    add $t6, $t6, $t0        # Add to display base
+    
+    # Draw virus at position
+    sw $t3, 0($t6)           # Draw pixel
+    
+    # Move to next virus
+    addi $t9, $t9, 12        # Next virus (3 words)
+    addi $t7, $t7, 1         # Increment counter
+    blt $t7, $t8, draw_virus_loop
+    
+    # Restore return address
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
 
 game_loop:
 	# Check if game is over
@@ -115,7 +263,7 @@ game_loop:
     beq $t9, 119, rotate        # ASCII 'w' (rotate)
     beq $t9, 115, move_down     # ASCII 's' (move down quickly)
     beq $t9, 113, exit          # ASCII 'q' (quit game)
-    beq $t9, 112, toggle_pause  # ASCII 'p' (pause game)
+    beq $t9, 112, toggle_pause  # 'p'
     
     j update_game               # If none of these keys, continue with game
 
@@ -680,49 +828,45 @@ generateCapsuleColors:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
-    # Generate first color (1=red, 2=green, 3=blue)
-    li $v0, 42
-    li $a0, 0
-    li $a1, 3
-    syscall
-    
-    # Set color based on random number
-    beq $a0, 0, set_red1
-    beq $a0, 1, set_green1
-    li $t5, 0x0000ff    # Blue
-    j store_color1
-    
-set_red1:
-    li $t5, 0xff0000    # Red
-    j store_color1
-    
-set_green1:
-    li $t5, 0x00ff00    # Green
-    
-store_color1:
-    sw $t5, CAPSULE_COLOR1
+    # Generate first color
+    jal generateColour
+    sw $v0, CAPSULE_COLOR1
     
     # Generate second color
+    jal generateColour
+    sw $v0, CAPSULE_COLOR2
+    
+    # Restore return address
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+generateColour:
+    # Save return address
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    # Generate random number between 0-2
     li $v0, 42
     li $a0, 0
     li $a1, 3
     syscall
     
     # Set color based on random number
-    beq $a0, 0, set_red2
-    beq $a0, 1, set_green2
-    li $t5, 0x0000ff    # Blue
-    j store_color2
+    beq $a0, 0, set_red_color
+    beq $a0, 1, set_green_color
+    li $v0, 0x0000ff    # Blue
+    j store_color
     
-set_red2:
-    li $t5, 0xff0000    # Red
-    j store_color2
+set_red_color:
+    li $v0, 0xff0000    # Red
+    j store_color
     
-set_green2:
-    li $t5, 0x00ff00    # Green
+set_green_color:
+    li $v0, 0x00ff00    # Green
     
-store_color2:
-    sw $t5, CAPSULE_COLOR2
+store_color:
+    # Result is already in $v0
     
     # Restore return address
     lw $ra, 0($sp)
@@ -1319,6 +1463,9 @@ reset_grid_loop:
     
     # Generate new colors
     jal generateCapsuleColors
+
+	#Gen new viruses
+	jal generateViruses
     
     j game_loop
 
