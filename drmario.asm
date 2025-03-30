@@ -14,7 +14,6 @@
 # - Display height in pixels:   8
 # - Base Address for Display:   0x10008000 ($gp)
 ##############################################################################
-
     .data
 ##############################################################################
 # Immutable Data
@@ -61,9 +60,9 @@ PAUSED:
 
 # Virus positions and colors
 VIRUS_POSITIONS:
-    .space 36    # Space for 3 viruses (x, y, color) = 12 bytes per virus
+    .space 144    # Space for 12 viruses (x, y, color) × 12 bytes each
 VIRUS_COUNT:
-    .word 3      # Number of viruses to generate
+    .word 3       # Initial number of viruses (adjust based on difficulty)
 
 ##############################################################################
 # Code
@@ -224,6 +223,30 @@ draw_virus_loop:
     lw $t2, 4($t9)           # Y position
     lw $t3, 8($t9)           # Color
     
+    # Check color and replace with dark version
+    li $t4, 0xff0000        # Check if red (0xff0000)
+    beq $t3, $t4, set_dark_red
+    
+    li $t4, 0x00ff00        # Check if green (0x00ff00)
+    beq $t3, $t4, set_dark_green
+    
+    li $t4, 0x0000ff        # Check if blue (0x0000ff)
+    beq $t3, $t4, set_dark_blue
+    
+    j color_checked         # Keep original color if not recognized
+    
+set_dark_red:
+    li $t3, 0x800000        # Dark red
+    j color_checked
+    
+set_dark_green:
+    li $t3, 0x008000        # Dark green
+    j color_checked
+    
+set_dark_blue:
+    li $t3, 0x000080        # Dark blue
+    
+color_checked:
     # Calculate pixel position
     mul $t4, $t2, 128        # Y * row width
     mul $t5, $t1, 4          # X * pixel size
@@ -231,7 +254,7 @@ draw_virus_loop:
     add $t6, $t6, $t0        # Add to display base
     
     # Draw virus at position
-    sw $t3, 0($t6)           # Draw pixel
+    sw $t3, 0($t6)           # Draw pixel with dark color
     
     # Move to next virus
     addi $t9, $t9, 12        # Next virus (3 words)
@@ -421,6 +444,7 @@ skip_auto_down:
     jal clear_screen
     jal drawBottle
     jal drawStoredPills     # Add this line to draw stored pills
+    jal drawViruses #Override virus colors
     jal drawActiveCapsule   # Active capsule should be drawn last
     
     # 4. Sleep (for approximately 16.67ms to achieve 60 FPS)
@@ -569,9 +593,22 @@ col_loop_h:
     
     # Clear the 4 cells
     sw $zero, 0($t2)
-    sw $zero, 4($t2)
-    sw $zero, 8($t2)
-    sw $zero, 12($t2)
+    addi $t2, $t2, 4 
+    addi $s0, $s0, 1
+    jal check_remove_virus
+    sw $zero, 0($t2)
+    addi $t2, $t2, 4 
+    addi $s0, $s0, 1
+    jal check_remove_virus
+    sw $zero, 0($t2)
+    addi $t2, $t2, 4 
+    addi $s0, $s0, 1
+    jal check_remove_virus
+    sw $zero, 0($t2)
+    addi $t2, $t2, 4 
+    addi $s0, $s0, 1
+    jal check_remove_virus
+    addi $s0, $s0, -3
     
 next_col_h:
     addi $s1, $s1, 1   # Increment column
@@ -648,13 +685,22 @@ row_loop_v:
     add $t2, $t2, $t1  # Address of first cell
     
     # Clear the 4 cells
+   
+    sw $zero, 0($t2) 
+    jal check_remove_virus
+    addi $t2, $t2, 76  # y+1
     sw $zero, 0($t2)
-    addi $t5, $t2, 76  # y+1
-    sw $zero, 0($t5)
-    addi $t5, $t5, 76  # y+2
-    sw $zero, 0($t5)
-    addi $t5, $t5, 76  # y+3
-    sw $zero, 0($t5)
+    addi $s1, $s1, 1
+    jal check_remove_virus
+    addi $t2, $t2, 76  # y+2
+    sw $zero, 0($t2)
+    addi $s1, $s1, 1
+    jal check_remove_virus
+    addi $t2, $t2, 76  # y+3
+    sw $zero, 0($t2)
+    addi $s1, $s1, 1
+    jal check_remove_virus
+    addi $s1, $s1, -3
     
 next_row_v:
     addi $s0, $s0, 1   # Increment row
@@ -671,6 +717,76 @@ next_row_v:
     lw $s3, 16($sp)
     addi $sp, $sp, 20
     jr $ra
+
+check_remove_virus:
+    # Input: $s0 = grid_x (0-18), $s1 = grid_y (0-29)
+    # Output: $v0 = 1 if virus at (grid_x, grid_y) was found and removed, else 0
+
+    la   $t6, VIRUS_POSITIONS   # Pointer to virus array (current virus entry)
+    lw   $t7, VIRUS_COUNT       # Total number of viruses
+    li   $v0, 0                 # Default: no virus removed
+
+check_virus_loop:
+    beqz $t7, check_virus_remove_end   # Exit loop if no viruses remain
+
+    # Load virus data
+    lw   $t8, 0($t6)            # Virus display X (range 3-21)
+    lw   $t9, 4($t6)            # Virus display Y (grid Y should match)
+    addi $t9, $t9, -3           # Convert display X to grid X (0-18)
+
+    # Compare coordinates: now $s0 = grid_x, $s1 = grid_y
+    bne  $t9, $s0, next_virus   # If grid X doesn't match, continue loop
+    bne  $t8, $s1, next_virus   # If grid Y doesn't match, continue loop
+
+    # Virus found!
+    li   $v0, 1                # Set flag that virus was removed
+
+    # Remove virus entry by replacing it with the last virus in the array.
+    lw   $t0, VIRUS_COUNT      # Load virus count again
+    addi $t0, $t0, -1          # t0 now equals index of the last virus
+    la   $t1, VIRUS_POSITIONS
+    mul  $t0, $t0, 12          # Calculate offset for last virus (3 words × 4 bytes)
+    add  $t1, $t1, $t0         # t1 now points to the last virus entry
+
+    beq  $t6, $t1, skip_copy   # If current virus is already the last, skip copying
+
+    # Copy the last virus into current slot (3 words)
+    lw   $t2, 0($t1)
+    lw   $t3, 4($t1)
+    lw   $t4, 8($t1)
+    sw   $t2, 0($t6)
+    sw   $t3, 4($t6)
+    sw   $t4, 8($t6)
+
+skip_copy:
+    # Update virus count (remove one virus)
+    lw   $t0, VIRUS_COUNT
+    addi $t0, $t0, -1
+    sw   $t0, VIRUS_COUNT
+
+    # Clear the corresponding cell in the grid.
+    # Grid index = (grid_y * grid_width + grid_x) * 4.
+    mul  $t5, $s1, 19         # t5 = grid_y * grid width (19)
+    add  $t5, $t5, $s0        # Add grid_x offset
+    sll  $t5, $t5, 2          # Multiply index by 4 (word alignment)
+    la   $t6, BOTTLE_GRID     # Load grid base address (reuse $t6)
+    add  $t6, $t6, $t5        # Calculate address in grid
+    sw   $zero, 0($t6)        # Clear cell (set to 0)
+
+    j    check_virus_remove_end
+
+next_virus:
+    addi $t6, $t6, 12         # Move pointer to next virus entry
+    addi $t7, $t7, -1         # Decrement loop counter
+    j    check_virus_loop
+
+check_virus_remove_end:
+    jr   $ra
+
+
+
+
+
 
 drop_unsupported_pills:
     # Save return address and $s registers we'll use
@@ -706,6 +822,10 @@ drop_row_loop:
     
     # Skip if cell is empty
     beqz $t3, drop_next_row
+    
+    #Check if current cell is a virus
+    jal is_virus
+    bnez $v0, drop_next_row # skip if its a virus
     
     # Check the cell below
     addi $t4, $t2, 76      # Move to row below (19*4 bytes)
@@ -750,6 +870,37 @@ drop_next_row:
     lw $s3, 16($sp)
     lw $s4, 20($sp)
     addi $sp, $sp, 24
+    jr $ra
+
+is_virus:
+    # Input: $a0 = grid_x (0-18), $a1 = grid_y (0-29)
+    # Output: $v0 = 1 if virus at (grid_x, grid_y), else 0
+    la $t6, VIRUS_POSITIONS  # Virus array address (using temp reg)
+    lw $t7, VIRUS_COUNT       # Number of viruses (temp reg)
+    li $v0, 0                 # Default return 0
+
+virus_check_loop:
+    beqz $t7, virus_check_end  # Exit if no more viruses
+    lw $t8, 0($t6)           # Load virus's display X (3-21)
+    lw $t9, 4($t6)           # Load virus Y (matches grid Y)
+    
+    # Convert display X to grid X
+    addi $t8, $t8, -3        # $t2 = grid_x (0-18)
+    
+    # Compare coordinates
+    bne $t8, $s1, next_is_virus # Check grid_x match
+    bne $t9, $s0, next_is_virus # Check grid_y match
+    
+    # Match found
+    li $v0, 1
+    j virus_check_end
+
+next_is_virus:
+    addi $t6, $t6, 12        # Next virus (3 words per entry)
+    addi $t7, $t7, -1        # Decrement counter
+    j virus_check_loop
+
+virus_check_end:
     jr $ra
 
 store_current_capsule:
@@ -928,6 +1079,9 @@ capsule_done:
     jr $ra
 
 drawTop:
+
+    lw $t0, ADDR_DSPL    # Display base address
+    
     # Save return address
     addi $sp, $sp, -4
     sw $ra, 0($sp)
