@@ -52,17 +52,26 @@ GRAVITY_DELAY:
 CAPSULE_COUNT:
     .word 0     # Counter for spawned capsules
 GRAVITY_INTERVAL:
-    .word 5      # Increase speed every 5 capsules
-DIFFICULTY:
-    .word 0  # 0=Easy, 1=Medium, 2=Hard
+    .word 3      # Increase speed every 3 capsules
 PAUSED:
     .word 0     # 0 = not paused, 1 = paused
 
 # Virus positions and colors
+NEXT_CAPSULES: 
+    .space 40  # 5 capsules, each with 2 colors (4 bytes each)
+SAVED_COLOR1: 
+    .word 0
+SAVED_COLOR2: 
+    .word 0
+SAVED_ORIENTATION: 
+    .word 0
+HAS_SAVED:
+    .word 0  # 0 = No saved capsule, 1 = Has saved
 VIRUS_POSITIONS:
     .space 144    # Space for 12 viruses (x, y, color) × 12 bytes each
 VIRUS_COUNT:
-    .word 3       # Initial number of viruses (adjust based on difficulty)
+    .word 4       # Initial number of viruses (adjust based on difficulty)
+
 
 ##############################################################################
 # Code
@@ -87,67 +96,19 @@ main:
     # Initialize orientation to horizontal (0)
     sw $zero, CAPSULE_ORIENTATION
     
+    
+    #get a queue of capusles
+	jal initialize_queue
+    
     # Generate initial capsule colors
     jal generateCapsuleColors
 
 	#generate the viruses now 
 	jal generateViruses
-    
-    lw $t0, ADDR_DSPL       # $t0 = base address for display 
-    # New code for mode selection and virus generation
-    # Move this to game_loop
-    # jal mode_selection      # Let player choose difficulty
-    # jal generate_viruses    # Populate viruses based on difficulty
+	    
+    lw $t0, ADDR_DSPL       # $t0 = base address for display  
     
     j game_loop             # Start the game
-
-# mode_selection:
-    # # Draw difficulty selection screen
-    # # (Assume draw_mode_menu is implemented to display options)
-    # # jal draw_mode_menu
-
-    # la $t8, ADDR_KBRD      # Get address of keyboard base address storage
-    # lw $t8, 0($t8)         # Load actual keyboard base address
-
-
-# mode_wait:
-    # lw $t9, 0($t8)         # Check if key pressed
-    # andi $t9, $t9, 1
-    # beqz $t9, mode_wait
-    
-    # lw $t9, 4($t8)         # Get key code
-    
-    # li $t3, 101            # ASCII for 'e'
-    # beq $t9, $t3, set_easy
-    # li $t3, 109            # ASCII for 'm'
-    # beq $t9, $t3, set_medium
-    # li $t3, 100            # ASCII for 'd' (changed from 104)
-    # beq $t9, $t3, set_hard
-    
-    # j mode_wait           # Invalid key, wait again
-
-# set_easy:
-    # li $t1, 4             # 4 viruses
-    # sw $t1, VIRUS_COUNT
-    # li $t1, 20            # Slow gravity
-    # sw $t1, GRAVITY_DELAY
-    # j end_mode
-
-# set_medium:
-    # li $t1, 8             # 8 viruses
-    # sw $t1, VIRUS_COUNT
-    # li $t1, 15            # Medium gravity
-    # sw $t1, GRAVITY_DELAY
-    # j end_mode
-
-# set_hard:
-    # li $t1, 12            # 12 viruses
-    # sw $t1, VIRUS_COUNT
-    # li $t1, 10            # Fast gravity
-    # sw $t1, GRAVITY_DELAY
-
-# end_mode:
-    # jr $ra                # Return to main
 
 generateViruses:
     # Save return address
@@ -302,6 +263,9 @@ toggle_pause:
 
 
 move_left:
+    lw $t5, PAUSED
+    bnez $t5, skip_auto_down
+    
     # Move capsule left if possible
     lw $t5, CAPSULE_X
     lw $t6, CAPSULE_Y
@@ -321,6 +285,8 @@ move_left:
     j input_done
 
 move_right:
+    lw $t5, PAUSED
+    bnez $t5, skip_auto_down
 
 	# Move capsule right if possible
     lw $t5, CAPSULE_X
@@ -347,6 +313,8 @@ check_horizontal_right:
     j input_done
 
 rotate:
+    lw $t5, PAUSED
+    bnez $t5, skip_auto_down
     # Rotate the capsule between horizontal and vertical
     lw $t5, CAPSULE_X
     lw $t6, CAPSULE_Y
@@ -367,6 +335,15 @@ rotate:
     
     # Update orientation if no collision
     sw $a2, CAPSULE_ORIENTATION
+    
+    # Play rotation sound
+    li $v0, 31
+    li $a0, 60
+    li $a1, 200
+    li $a2, 0
+    li $a3, 100
+    syscall
+    
     j input_done
     
 vertical_to_horizontal:
@@ -383,9 +360,21 @@ vertical_to_horizontal:
     
     # Update orientation if no collision
     sw $a2, CAPSULE_ORIENTATION
+    
+    # Play rotation sound
+    li $v0, 31
+    li $a0, 60
+    li $a1, 200
+    li $a2, 0
+    li $a3, 100
+    syscall
+    
     j input_done
 
 move_down:
+    lw $t5, PAUSED
+    bnez $t5, skip_auto_down
+    
     # Move capsule down if possible
     lw $t5, CAPSULE_X
     lw $t6, CAPSULE_Y
@@ -402,6 +391,15 @@ move_down:
     
     # Update position if no collision
     sw $a1, CAPSULE_Y
+    
+    # Play drop sound
+    li $v0, 31
+    li $a0, 50
+    li $a1, 200
+    li $a2, 0
+    li $a3, 100
+    syscall
+
     j input_done
 
 input_done:
@@ -445,6 +443,7 @@ skip_auto_down:
     jal drawBottle
     jal drawStoredPills     # Add this line to draw stored pills
     jal drawViruses #Override virus colors
+    jal drawPreview
     jal drawActiveCapsule   # Active capsule should be drawn last
     
     # 4. Sleep (for approximately 16.67ms to achieve 60 FPS)
@@ -454,7 +453,8 @@ skip_auto_down:
 
     # 5. Go back to Step 1
     j game_loop
-
+    
+    
 new_capsule:
 	# First, store the current capsule in the grid
     jal store_current_capsule
@@ -480,16 +480,18 @@ matches_done:
     sw $t6, CAPSULE_COUNT
     
     lw $t7 GRAVITY_DELAY
-    bge $t7 5 gravity_adjusted_check #Minimum Gravity
+    li $t8 5
+    bge $t7 $t8 gravity_adjusted_check #Minimum Gravity
     
     j skip_auto_down
 
 gravity_adjusted_check:
     lw $t5, CAPSULE_COUNT
-    lw $t6, GRAVITY_INTERVAL
+    li $t6, 3 
     div $t5, $t6
     mfhi $t7             # Get remainder
     beqz $t7, adjust_gravity # Skip if not at interval
+    j skip_auto_down
     
 adjust_gravity:
     lw $t8, GRAVITY_DELAY
@@ -610,6 +612,14 @@ col_loop_h:
     jal check_remove_virus
     addi $s0, $s0, -3
     
+    # Play clear sound
+    li $v0, 31
+    li $a0, 72
+    li $a1, 300
+    li $a2, 2
+    li $a3, 100
+    syscall
+    
 next_col_h:
     addi $s1, $s1, 1   # Increment column
     blt $s1, 16, col_loop_h  # Loop if not at end (19-3 = 16 is the last valid start position)
@@ -701,6 +711,14 @@ row_loop_v:
     addi $s1, $s1, 1
     jal check_remove_virus
     addi $s1, $s1, -3
+    
+    # Play clear sound
+    li $v0, 31
+    li $a0, 72
+    li $a1, 300
+    li $a2, 2
+    li $a3, 100
+    syscall
     
 next_row_v:
     addi $s0, $s0, 1   # Increment row
@@ -902,7 +920,7 @@ next_is_virus:
 
 virus_check_end:
     jr $ra
-
+    
 store_current_capsule:
     # Save return address
     addi $sp, $sp, -4
@@ -979,18 +997,61 @@ generateCapsuleColors:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
-    # Generate first color
-    jal generateColour
-    sw $v0, CAPSULE_COLOR1
+    #get next color from the queuse
+    la $t0, NEXT_CAPSULES
+    lw $t1, 0($t0)
+    lw $t2, 4($t0)
     
-    # Generate second color
+    sw $t1, CAPSULE_COLOR1
+    sw $t2, CAPSULE_COLOR2
+    li $t3, 0
+
+    shift_loop:
+        bge $t3, 4, end_shift
+        addi $t4, $t3, 1
+        sll $t5, $t4, 3
+        add $t5, $t0, $t5
+        lw $t6, 0($t5)
+        lw $t7, 4($t5)
+        sll $t8, $t3, 3
+        add $t8, $t0, $t8
+        sw $t6, 0($t8)
+        sw $t7, 4($t8)
+        addi $t3, $t3, 1
+        j shift_loop
+
+end_shift:
+    #Generate color for the new block in quesue
     jal generateColour
-    sw $v0, CAPSULE_COLOR2
+    sw $v0, 32($t0)
+    jal generateColour
+    sw $v0, 36($t0)
     
     # Restore return address
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
+    
+initialize_queue:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    la $t0, NEXT_CAPSULES
+    li $t1, 0
+init_loop:
+    beq $t1, 5, end_init
+    jal generateColour
+    sw $v0, 0($t0)
+    jal generateColour
+    sw $v0, 4($t0)
+    addi $t0, $t0, 8
+    addi $t1, $t1, 1
+    j init_loop
+end_init:
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+
 
 generateColour:
     # Save return address
@@ -1074,6 +1135,36 @@ horizontal_capsule:
     
 capsule_done:
     # Restore return address
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+    
+    
+drawPreview:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    la $s0, NEXT_CAPSULES
+    lw $t0, ADDR_DSPL
+    li $s1, 0
+    li $s2, 22
+preview_loop:
+    beq $s1, 4, end_preview
+    mul $s3, $s1, 4
+    addi $s3, $s3, 5
+    mul $s4, $s1, 8
+    add $s4, $s0, $s4
+    lw $s5, 0($s4)
+    lw $s6, 4($s4)
+    mul $t1, $s3, 128
+    sll $t2, $s2, 2
+    add $t3, $t1, $t2
+    add $t3, $t3, $t0
+    sw $s5, 0($t3)
+    addi $t3, $t3, 4
+    sw $s6, 0($t3)
+    addi $s1, $s1, 1
+    j preview_loop
+end_preview:
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
@@ -1577,6 +1668,14 @@ show_game_over:
     # Display game over screen only once
     jal drawGameOver
     
+    # Play game over sound
+    li $v0, 31
+    li $a0, 40
+    li $a1, 1000
+    li $a2, 32
+    li $a3, 100
+    syscall
+    
     # Now wait for 'r' key without redrawing the screen
 wait_for_restart:
     # Check if 'r' key is pressed to restart
@@ -1599,6 +1698,12 @@ restart_game:
     li $t1, 0
     li $t2, 570    # 19×30 grid size (number of cells)
     
+    li $t3, 0
+    sw $t3, CAPSULE_COUNT 
+    
+    li $t3, 15
+    sw $t3, GRAVITY_DELAY
+    
 reset_grid_loop:
     sw $zero, 0($t9)      # Store word (4 bytes) of zeros
     addi $t9, $t9, 4      # Move to next word
@@ -1614,6 +1719,9 @@ reset_grid_loop:
     
     # Reload display base address before returning to game loop
     lw $t0, ADDR_DSPL
+    
+    #get a queue of capusles
+	jal initialize_queue
     
     # Generate new colors
     jal generateCapsuleColors
