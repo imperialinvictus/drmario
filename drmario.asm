@@ -71,6 +71,10 @@ VIRUS_POSITIONS:
     .space 144    # Space for 12 viruses (x, y, color) × 12 bytes each
 VIRUS_COUNT:
     .word 4       # Initial number of viruses (adjust based on difficulty)
+CURRENT_LEVEL:
+    .word 0       #level you are on
+BASE_VIRUS_COUNT:
+    .word 4       #amount of viruses to clear before moving on to the next level
 
 
 ##############################################################################
@@ -117,21 +121,22 @@ generateViruses:
     
     la $t0, VIRUS_POSITIONS  # Load address of virus positions array
     lw $t1, VIRUS_COUNT      # Load number of viruses
+    
     li $t2, 0                # Counter
     
 gen_virus_loop:
     # Generate random X position (3 to 20)
     li $v0, 42
     li $a0, 0
-    li $a1, 18               # Range 0-17
+    li $a1, 17               # Range 0-16
     syscall
     addi $a0, $a0, 3         # Adjust to 3-20 range
     sw $a0, 0($t0)           # Store X position
     
-    # Generate random Y position (10 to 28)
+    # Generate random Y position (10 to 27)
     li $v0, 42
     li $a0, 0
-    li $a1, 19               # Range 0-18
+    li $a1, 18               # Range 0-17
     syscall
     addi $a0, $a0, 10        # Adjust to 10-28 range
     sw $a0, 4($t0)           # Store Y position
@@ -231,6 +236,9 @@ game_loop:
 	# Check if game is over
     lw $t5, GAME_OVER
     bnez $t5, show_game_over
+
+    lw $t5, VIRUS_COUNT
+    beq $t5, 0, virus_gone
 
     # 1a. Check if key has been pressed
     lw $t8, ADDR_KBRD       # $t8 = base address of keyboard
@@ -745,7 +753,7 @@ check_remove_virus:
     li   $v0, 0                 # Default: no virus removed
 
 check_virus_loop:
-    beqz $t7, check_virus_remove_end   # Exit loop if no viruses remain
+    beqz $t7, virus_check_end
 
     # Load virus data
     lw   $t8, 0($t6)            # Virus display X (range 3-21)
@@ -781,7 +789,33 @@ skip_copy:
     lw   $t0, VIRUS_COUNT
     addi $t0, $t0, -1
     sw   $t0, VIRUS_COUNT
+    
+    # Check if level is complete (all viruses in this level are cleared)
+    bnez $t0, virus_remaining  # If viruses remain, continue as normal
 
+virus_gone:
+    # Save return address on stack before nested call to advance_level
+    addi $sp, $sp, -4
+    sw   $ra, 0($sp)
+
+    # All viruses have been cleared - play a victory sound
+    li $v0, 31
+    li $a0, 84              # Higher note for level completion
+    li $a1, 1000            # Longer sound
+    li $a2, 1               # Piano instrument
+    li $a3, 127             # Max volume
+    syscall
+    
+    # Advance to next level
+    jal advance_level
+    
+    # Restore return address
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    
+    j restart_game                # Restart the entire game with new level
+    
+virus_remaining:
     # Clear the corresponding cell in the grid.
     # Grid index = (grid_y * grid_width + grid_x) * 4.
     mul  $t5, $s1, 19         # t5 = grid_y * grid width (19)
@@ -800,11 +834,6 @@ next_virus:
 
 check_virus_remove_end:
     jr   $ra
-
-
-
-
-
 
 drop_unsupported_pills:
     # Save return address and $s registers we'll use
@@ -1730,6 +1759,30 @@ reset_grid_loop:
 	jal generateViruses
     
     j game_loop
+
+# When a level is completed (all viruses cleared):
+advance_level:
+    # Increment the current level
+    lw $t0, CURRENT_LEVEL
+    addi $t0, $t0, 1
+    sw $t0, CURRENT_LEVEL
+
+    # Also update VIRUS_IN_THIS_LEVEL
+    lw $t1, VIRUS_COUNT
+    
+    # Calculate new virus count (base + level)
+    lw $t2, BASE_VIRUS_COUNT     # Load base virus count
+    add $t1, $t2, $t0       # Add current level number 
+    
+    sw $t1, VIRUS_COUNT     # Update the actual virus count
+
+    
+    # Small delay for player to notice level completion
+    li $a0, 1000            # 1 second delay
+    li $v0, 32
+    syscall
+    
+    jr $ra
 
 drawLineHoriz:
     # This is a leaf function (doesn't call other functions)
