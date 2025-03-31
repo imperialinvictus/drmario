@@ -1,0 +1,104 @@
+\documentclass{article}
+
+%% Page Margins %%
+\usepackage{geometry}
+\geometry{
+    top = 0.75in,
+    bottom = 0.75in,
+    right = 0.75in,
+    left = 0.75in,
+}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{parskip}
+
+\title{Assembly Project: Dr Mario}
+
+% TODO: Enter your name
+\author{Sergio Sanchez & Name 2}
+
+\begin{document}
+\maketitle
+
+\section{Instruction and Summary}
+
+\begin{enumerate}
+
+    \item Which milestones were implemented?\\ 
+    Milestones 1 through 5 are fully implemented!! We have chosen to do 8 easy features to complete our game. Our game has a capsule preview, incrementing capsule speed, a game over and restart screen, increasing capsule speed and capsule gravity, sound effects on rotation and dropping, and increasing levels upon clearing all the viruses.
+
+    \item How to view the game:
+    % TODO: specify the pixes/unit, width and height of 
+    %       your game, etc.  NOTE: list these details in
+    %       the header of your breakout.asm file too!
+    
+    \begin{enumerate}
+
+    \item
+    my grid is 19 columns by 30 rows in a 256x256 unit display with a unit width of 8 for each pixel (32x32 with width 1 essentially)
+    \item
+    Grid goes from the 3rd column to the 22nd column of the display with a height of 30 rows. Viruses are placed randomly within the grid and the capsule is generated to be at the bottle opening which is the 12th column and 3rd row.
+    \item
+    game is played with WASD controls. Game over screen appears at the end where you can restart by clicking R, you can quit at any time by pressing Q, and pausing is done by pressin P.
+
+    \end{enumerate}
+
+    
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{drMario_game.png}
+    \caption{caption}
+    \label{Instructions}
+\end{figure}
+
+\item Game Summary:
+% TODO: Tell us a little about your game.
+\begin{itemize}
+\item
+My game is dr mario, I draw the initial capsule and grid and save it to a space. In each go I redraw the capsule as it goes down then once collision is detected with the bottom boundary I save its position then redraw the new capsule at the top. I repeat this until the game detects that there is a pill outside the boundary in which case it will show a game over message.
+\item
+Game is complete up to milestone 5 with 8 easy features, (1, 2, 4, 5, 6, 7, 11, 12) 
+
+\end{itemize}
+
+    
+\end{enumerate}
+
+\section{Attribution Table}
+% TODO: If you worked in partners, tell us who was 
+%       responsible for which features. Some reweighting 
+%       might be possible in cases where one group member
+%       deserves extra credit for the work they put in.
+
+\begin{center}
+\begin{tabular}{|| c | c ||}
+\hline
+ Sergio Sanchez 1008801432 &  Rafay Usman 1010103317 \\ 
+ \hline
+ Drawing bottle and capusle & dropping blocks hanging in the air\\
+ \hline
+ Capsule movement & 4 in a row elimination\\
+ \hline
+ Collision Detection & Increasing capsule drop speed\\ 
+ \hline
+ Restart game screen & Sound Effects\\ 
+ \hline
+ Advance level on virus clearing & Pause Game\\
+ \hline
+ Task & Capsule preview\\  
+ \hline
+\end{tabular}
+\end{center}
+
+% TODO: Fill out the remainder of the document as you see 
+%       fit, including as much detail as you think 
+%       necessary to better understand your code. 
+%       You can add extra sections and subsections to 
+%       help us understand why you deserve marks for 
+%       features that were more challenging than they
+%       might initially seem.
+
+
+\end{document}
